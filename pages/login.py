@@ -41,3 +41,12 @@ def login_page(auth: pyrebase.pyrebase.Auth):
             st.write('Something went wrong...', auth_result)
     st.write('User:', auth.current_user)
     st.session_state['auth_user'] = auth.current_user
+
+
+config = st.secrets
+firebase = pyrebase.initialize_app(config)
+db = firebase.database()
+
+if "auth_user" not in st.session_state or not st.session_state["auth_user"]:
+  auth = firebase.auth()
+  login_page(auth)
