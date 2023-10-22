@@ -164,53 +164,6 @@ if entries:
 
 
 
-
-containers = []
-#how to inlcude external css file: https://discuss.streamlit.io/t/creating-a-nicely-formatted-search-field/1804/2
-for date in sorted(dates):
-    c = st.container()
-    containers.append(c)
-    columns = containers[-1].columns(len(collaborators)+2)
-    with columns[0]:
-        columns[0].header("Date")
-        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-        columns[0].write(date)
-    with columns[1]:
-        columns[1].header("You")
-        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-        for e in entries:
-            if e.val()["date"] == date:
-                entry(e.val(), e.key(), columns[1])
-    for index, column in enumerate(columns[2:]):
-        with column:
-            column.header(users[index])
-            try:
-                text = df[(df['user'] == users[index]) & (df['date'] == date)].iloc[0]['journal_entry']
-            except:
-                text = ""
-            #column.markdown(f'<div style="border-radius: 15px; background-color: grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{text}</div>', unsafe_allow_html=True)
-            column.write(text)
-
-journal_input = st.chat_input('Start journaling...')
-if journal_input:
-    c = st.container()
-    containers.append(c)
-    columns = containers[-1].columns(len(collaborators)+2)
-    datum = str(datetime.datetime.utcnow())
-    data = {'entry': journal_input, 'date': datum}
-    key = db.child("journals").child(uid).push(data)
-    with columns[0]:
-        columns[0].header("Date")
-        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-        columns[0].write(datum)
-    with columns[1]:
-        columns[1].header("You")
-        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-        entry(data, key, columns[1])
-        
-        
-        
-
 if completion:
     st.write(completion["choices"][0]["message"]["content"])
     match = re.search(r'"Summary":\s+"(.*?)"', completion["choices"][0]["message"]["content"], re.DOTALL)
