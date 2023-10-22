@@ -37,7 +37,6 @@ with st.form(key="collab_input"):
         except:
             st.error(f"Error sending collaboration request to {partner_email}")
 
-st.divider()
 uid = st.session_state["auth_user"]["localId"]
 myhash = shash(st.session_state["auth_user"]["email"])
 
@@ -53,12 +52,12 @@ if collaborators:
         with st.chat_message(partner_email):
             st.write(partner_email)
     st.session_state["collaborators"] = collaborators
-    st.divider()
 
 
 # Check if there are any pending collaboration requests
 collab_requests = db.child("collabrequests").child(myhash).get().each()
 if collab_requests:
+    st.divider()
     st.warning("You have pending collaboration requests:")
 
     for collab_req in collab_requests:
