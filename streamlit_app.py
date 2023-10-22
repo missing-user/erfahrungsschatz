@@ -23,7 +23,8 @@ for i in range(3):
 
 
 for entries in database.get().each():
-  st.chat_message(entries.val()['entry'])
+  with st.chat_message("user"):
+    st.write(entries.val()["entry"])
 
 
 # Title
