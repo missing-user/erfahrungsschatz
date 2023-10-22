@@ -43,7 +43,7 @@ if collaborators:
     partner_email = col.val()
     with st.chat_message(partner_email):
       st.write(partner_email)
-  st.session_state["collaborators"] = colab_ids
+  st.session_state["collaborators"] = collaborators
   st.divider()
 
 
