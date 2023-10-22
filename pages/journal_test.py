@@ -2,11 +2,27 @@ import streamlit as st
 import datetime
 import pandas as pd
 import streamlit_bd_cytoscapejs
-import openai 
+import openai
+import re
+
+import streamlit as st
+import pyrebase
+import datetime
+from streamlit_extras.switch_page_button import switch_page
 
 
-from openai.embeddings_utils import get_embedding
-openai.api_key = "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"
+if "auth_user" not in st.session_state or not st.session_state["auth_user"]:
+  switch_page("login")
+
+config = st.secrets
+openai.api_key = config.open_api_key
+
+config = st.secrets
+firebase = pyrebase.initialize_app(config)
+db = firebase.database()
+
+
+uid = st.session_state["auth_user"]["localId"]
 
 # embedding model parameters
 embedding_model = "text-embedding-ada-002"
@@ -18,21 +34,8 @@ max_tokens = 8000  # the maximum for text-embedding-ada-002 is 8191
 st.set_page_config(layout="wide")
 
 # Sample data
-users = ["You","You", "Theo", "Theo", "Theo", "Felix", "Felix", "Felix"]
+users = ["Theo", "Theo", "Theo", "Felix", "Felix", "Felix"]
 journal_entries = [
-    """First day of journaling with Erfahrungsschatz! REally excited; I am mostly working on the fabrication of the photonic chip in the lab.
-    We are working on it for a quantum networks group. In quantum networks there are two type of networks: those which need node entanglement and those who do not. The method this experimental group is 
-    working on is doping erbium atoms into silicon and building a quantum memory platform from this. 
-    This could be extremely useful, because erbium atoms have energy spectrums (that would be used as TLS 
-    for the qubit for the quantum menmory) that emit in the telecom-c length. with that entanglement over fiber 
-    could be made way more efficient maybe. current methods of entangling distant nodes via optical fibres require the 
-    modulation of the frequency of the light for sending it over larger distances without loss and then back modulation. 
-    The modulation creates huge losses and thus node entanglement is very difficult currently.
-    The SU8 and fiber to chip coupling is one subproblem, which is the interface between the optical fiber (long distance link to next node) 
-    and the Chip where the silicon and erbium is on.""",
-    """
-    Trying to coat a chip with SU8 but not succeeding. The SU8 is not sticking to the chip.
-    """,
     """Trying new fabrication method, namely to try new high-resolution mask for fabrication of photonic chip. 
     First attempt of using SU8 as a high-resolution mask. Made one initial attempt for developing SU8 using the following parameters: 
     Spin-Coating SU8 Soft Bake (3 min. at 60 degrees)
@@ -59,44 +62,133 @@ journal_entries = [
     """At the beginning of the day I still had no clue why it was not working; After a lot of discussions with group members, I
     finally figured out what the problem was: The detection diode was not calibrated correctly. So next time keep that in mind!"""
 ]
-dates = [datetime.date(2021, 2, 1),datetime.date(2023, 2, 1), datetime.date(2021, 2, 1), datetime.date(2022, 2, 1), 
+dates = [datetime.date(2021, 2, 1), datetime.date(2022, 2, 1), 
          datetime.date(2023, 2, 1), datetime.date(2021, 2, 1), datetime.date(2022, 2, 1),
          datetime.date(2023, 2, 1)]
 
+formatted_messages = []
+formatted_messages.append({"role": "system", "content": """You are supposed to help
+                    with the knowledge management system
+                    of a research group. You are given the journal entries of different users (given by the name after the string "from user" taken over time while working on different projects. 
+        It may be the case, that the newest problem the user faces (the last message) can be solved by some old entries or at least old entries can
+                    help the user to find the problem better. 
+                    Please give the message numbers of the messages that you think are relevant for the newest problem the user faces and give a summary
+                    of what the user could do to solve the problem. 
+                    Ignore the last consecutive messages from the same user as he still knows what is problem is.
+                    If no message is relevant, write "no message is relevant".
+                    I there are relevant messages, return it in the following format:
+                        {
+                    Relevant messages: [message number 1, message number 2, ...]
+                        Summary: {summary}}
+                    The summary should be somthing in the direction of:
+                    Hey _insert_user_name, other people might have had the same problem before. Based on the questions _insert_massage_numbers 
+                    you could consider trying....
+                    Try clustering the messages into different problem solving approaches, if there are several, but please only if.
+                    """})
+
+msg_nr = 0
+for index, entry in enumerate(journal_entries):
+    msg_nr += 1
+    formatted_messages.append({"role": "user", "content": "Mesage Nr.: " + str(msg_nr) + " from user " + users[index] + ": " + entry})
+
+
+
+#completion = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=formatted_messages)
 
 # Create DataFrame
 df = pd.DataFrame({'user': users, 'journal_entry': journal_entries, 'date': dates})
-
-print(df)
-
-#ontological siminlarity
+#ontological similarity
 
 dates = df.date.unique()
 users = df.user.unique()
 dates = sorted(dates)
 
-containers = []
-#how to inlcude external css file: https://discuss.streamlit.io/t/creating-a-nicely-formatted-search-field/1804/2
-for date in dates:
-    c = st.container()
-    containers.append(c)
-    columns = containers[-1].columns(len(users)+1)
-    with columns[0]:
-        columns[0].header("Date")
-        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-        columns[0].write(date)
-    for index, column in enumerate(columns[1:]):
-        with column:
-            column.header(users[index])
-            try:
-                text = df[(df['user'] == users[index]) & (df['date'] == date)].iloc[0]['journal_entry']
-            except:
-                text = ""
-            #column.markdown(f'<div style="border-radius: 15px; background-color: grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{text}</div>', unsafe_allow_html=True)
-            column.write(text)
 
+def entry(data, key, column):
+    message = data["entry"]
+    date = data["date"]
+    col1, col2 = column.columns([8,1])
+    with col1:
+      if "editing" in st.session_state and st.session_state["editing"] == key:
+        edit_inp = column.text_area("Editing entry", value=message, key=key+"_edit")
+        if edit_inp != message:
+          db.child("journals").child(uid).child(key).update({"entry": edit_inp, "date": date})
+          st.write("Updated entry", key)
+          del st.session_state["editing"]
+          st.rerun()
+      else:
+        column.markdown(message)
+    with col2:
+      if column.button("Edit", key=key):
+        st.session_state["editing"] = key
+        st.rerun()
 
-completion = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=formatted_messages
-        )
+if st.session_state["auth_user"]:
+    uid = st.session_state["auth_user"]["localId"]
+    st.write(st.session_state["auth_user"])
+    #.order_by_child("date").limit_to_last(15)
+    own_entries = db.child("journals").child(uid).get().each()
+    print("fetching all data from db")
+    dates = []
+    for e in own_entries:
+        date = datetime.datetime.strptime(e.val()["date"], '%Y-%m-%d %H:%M:%S.%f')
+        dates.append(date.day)
+    collaborators = []
+
+    containers = []
+    #how to inlcude external css file: https://discuss.streamlit.io/t/creating-a-nicely-formatted-search-field/1804/2
+    for date in sorted(dates):
+        c = st.container()
+        containers.append(c)
+        columns = containers[-1].columns(len(collaborators)+2)
+        with columns[0]:
+            columns[0].header("Date")
+            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+            columns[0].write(date)
+        with columns[1]:
+            columns[1].header("You")
+            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+            for e in own_entries:
+                if e.val()["date"] == date:
+                    entry(e.val(), e.key(), columns[1])
+        for index, column in enumerate(columns[2:]):
+            with column:
+                column.header(users[index])
+                try:
+                    text = df[(df['user'] == users[index]) & (df['date'] == date)].iloc[0]['journal_entry']
+                except:
+                    text = ""
+                #column.markdown(f'<div style="border-radius: 15px; background-color: grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{text}</div>', unsafe_allow_html=True)
+                column.write(text)
+
+    journal_input = st.chat_input('Start journaling...')
+    if journal_input:
+        c = st.container()
+        containers.append(c)
+        columns = containers[-1].columns(len(collaborators)+2)
+        datum = str(datetime.datetime.utcnow())
+        data = {'entry': journal_input, 'date': datum}
+        key = db.child("journals").child(uid).push(data)
+        with columns[0]:
+            columns[0].header("Date")
+            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+            columns[0].write(datum)
+        with columns[1]:
+            columns[1].header("You")
+            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+            entry(data, key, columns[1])
+        
+        
+        
+
+if completion:
+    st.write(completion["choices"][0]["message"]["content"])
+    match = re.search(r'"Summary":\s+"(.*?)"', completion["choices"][0]["message"]["content"], re.DOTALL)
+    if match:
+        summary = match.group(1)
+        st.write(summary)
+    match = re.search(r'"Relevant messages": \[([\d, ]+)\]', completion["choices"][0]["message"]["content"])
+    if match:
+        messages_str = match.group(1)
+        messages = [int(msg.strip()) for msg in messages_str.split(',')]
+        st.write(messages)
