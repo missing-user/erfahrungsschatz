@@ -1,17 +1,19 @@
 import streamlit as st
 import pyrebase
-import login
 import datetime
+from streamlit_extras.switch_page_button import switch_page
+if "auth_user" not in st.session_state or not st.session_state["auth_user"]:
+  switch_page("login")
 
 config = st.secrets
+
+
 st.title('Erfahrungsschatz')
 
 firebase = pyrebase.initialize_app(config)
 db = firebase.database()
 
-if "auth_user" not in st.session_state or not st.session_state["auth_user"]:
-  auth = firebase.auth()
-  login.login(auth)
+
 
 def entry(data, key):
   message = data["entry"]
@@ -33,22 +35,19 @@ def entry(data, key):
         st.session_state["editing"] = key
         st.rerun()
 
-if st.session_state["auth_user"]:
-  uid = st.session_state["auth_user"]["localId"]
-  st.write(st.session_state["auth_user"])
+uid = st.session_state["auth_user"]["localId"]
 
-  #.order_by_child("date").limit_to_last(15)
-  entries = db.child("journals").child(uid).get().each()
-  print("fetching all data from db")
-  if entries:
-    for e in entries:
-      entry(e.val(), e.key())
+#.order_by_child("date").limit_to_last(15)
+entries = db.child("journals").child(uid).get().each()
+print("fetching all data from db")
+if entries:
+  for e in entries:
+    entry(e.val(), e.key())
 
+# 
 
-  journal_input = st.chat_input('Start journaling...')
-  if journal_input:
-    data = {'entry': journal_input, 'date': str(datetime.datetime.utcnow())}
-    key = db.child("journals").child(uid).push(data)
-    entry(data, key)
-else:
-  st.write("You need to login first")
+journal_input = st.chat_input('Start journaling...')
+if journal_input:
+  data = {'entry': journal_input, 'date': str(datetime.datetime.utcnow())}
+  key = db.child("journals").child(uid).push(data)
+  entry(data, key)
