@@ -104,9 +104,7 @@ users = df.user.unique()
 dates = sorted(dates)
 
 
-def entry(data, key, column):
-    message = data["entry"]
-    date = data["date"]
+def entry(message, key, column):
     col1, col2 = column.columns([8,1])
     with col1:
       if "editing" in st.session_state and st.session_state["editing"] == key:
@@ -123,60 +121,92 @@ def entry(data, key, column):
         st.session_state["editing"] = key
         st.rerun()
 
-if st.session_state["auth_user"]:
-    uid = st.session_state["auth_user"]["localId"]
-    st.write(st.session_state["auth_user"])
-    #.order_by_child("date").limit_to_last(15)
-    own_entries = db.child("journals").child(uid).get().each()
-    print("fetching all data from db")
-    dates = []
-    for e in own_entries:
-        date = datetime.datetime.strptime(e.val()["date"], '%Y-%m-%d %H:%M:%S.%f')
-        dates.append(date.day)
-    collaborators = []
+def parse_database_entries(entries, uid):
+    # Convert from pyrebase object to dict
+    for i in range(len(entries)):
+        key = entries[i].key()
+        entries[i] = entries[i].val()
+        entries[i]["key"] = key
+        entries[i]["uid"] = uid
+    return entries
 
-    containers = []
-    #how to inlcude external css file: https://discuss.streamlit.io/t/creating-a-nicely-formatted-search-field/1804/2
-    for date in sorted(dates):
-        c = st.container()
-        containers.append(c)
-        columns = containers[-1].columns(len(collaborators)+2)
-        with columns[0]:
-            columns[0].header("Date")
-            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-            columns[0].write(date)
-        with columns[1]:
-            columns[1].header("You")
-            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-            for e in own_entries:
-                if e.val()["date"] == date:
-                    entry(e.val(), e.key(), columns[1])
-        for index, column in enumerate(columns[2:]):
+def get_all_entries():
+    entries = db.child("journals").child(uid).order_by_key().get().each()
+    entries = parse_database_entries(entries, uid)
+
+    if "collaborators" in st.session_state and st.session_state["collaborators"]:
+        for col in st.session_state["collaborators"]:
+            colab_entries = (
+                db.child("journals").child(col.key()).order_by_key().get().each()
+            )
+            entries.extend(parse_database_entries(colab_entries, col.key()))
+    return entries
+
+entries = get_all_entries()
+if entries:
+    df = pd.DataFrame(entries)
+    df["date"] = df["date"].apply(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S.%f').date())
+    #st.write(df)
+    
+    for date in df["date"].unique():
+        today_df = df[df["date"] == date]
+        users = today_df["uid"].unique()
+        # Create a column for each user
+        columns = st.columns(len(users)+1)
+        #columns[0].header("Date")
+        columns[0].write(date)
+        for i, column in enumerate(columns[1:]):
+            user = users[i]
             with column:
-                column.header(users[index])
-                try:
-                    text = df[(df['user'] == users[index]) & (df['date'] == date)].iloc[0]['journal_entry']
-                except:
-                    text = ""
-                #column.markdown(f'<div style="border-radius: 15px; background-color: grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{text}</div>', unsafe_allow_html=True)
-                column.write(text)
+                for entry in today_df.loc[today_df["uid"] == user,"entry"]:
+                    #with st.chat_message(user):
+                    st.markdown(entry)
 
-    journal_input = st.chat_input('Start journaling...')
-    if journal_input:
-        c = st.container()
-        containers.append(c)
-        columns = containers[-1].columns(len(collaborators)+2)
-        datum = str(datetime.datetime.utcnow())
-        data = {'entry': journal_input, 'date': datum}
-        key = db.child("journals").child(uid).push(data)
-        with columns[0]:
-            columns[0].header("Date")
-            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-            columns[0].write(datum)
-        with columns[1]:
-            columns[1].header("You")
-            #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
-            entry(data, key, columns[1])
+
+
+
+containers = []
+#how to inlcude external css file: https://discuss.streamlit.io/t/creating-a-nicely-formatted-search-field/1804/2
+for date in sorted(dates):
+    c = st.container()
+    containers.append(c)
+    columns = containers[-1].columns(len(collaborators)+2)
+    with columns[0]:
+        columns[0].header("Date")
+        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+        columns[0].write(date)
+    with columns[1]:
+        columns[1].header("You")
+        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+        for e in entries:
+            if e.val()["date"] == date:
+                entry(e.val(), e.key(), columns[1])
+    for index, column in enumerate(columns[2:]):
+        with column:
+            column.header(users[index])
+            try:
+                text = df[(df['user'] == users[index]) & (df['date'] == date)].iloc[0]['journal_entry']
+            except:
+                text = ""
+            #column.markdown(f'<div style="border-radius: 15px; background-color: grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{text}</div>', unsafe_allow_html=True)
+            column.write(text)
+
+journal_input = st.chat_input('Start journaling...')
+if journal_input:
+    c = st.container()
+    containers.append(c)
+    columns = containers[-1].columns(len(collaborators)+2)
+    datum = str(datetime.datetime.utcnow())
+    data = {'entry': journal_input, 'date': datum}
+    key = db.child("journals").child(uid).push(data)
+    with columns[0]:
+        columns[0].header("Date")
+        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+        columns[0].write(datum)
+    with columns[1]:
+        columns[1].header("You")
+        #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
+        entry(data, key, columns[1])
         
         
         

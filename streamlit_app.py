@@ -8,7 +8,6 @@ if "auth_user" not in st.session_state or not st.session_state["auth_user"]:
 
 config = st.secrets
 
-
 st.title("Erfahrungsschatz")
 
 firebase = pyrebase.initialize_app(config)
@@ -42,23 +41,23 @@ def entry(data, key, name="human"):
 
 uid = st.session_state["auth_user"]["localId"]
 
-entries = db.child("journals").child(uid).order_by_key().get().each()
-print("fetching all data from db")
+def get_all_entries():
+    #entries = db.child("journals").child(uid).order_by_key().get().each()
+    entries = []
+    if "collaborators" in st.session_state and st.session_state["collaborators"]:
+        for col in st.session_state["collaborators"]:
+            colab_entries = (
+                db.child("journals").child(col.key()).order_by_key().get().each()
+            )
+            entries.extend(colab_entries)
+    return entries
+
+entries = get_all_entries()
 if entries:
     for e in entries:
         entry(e.val(), e.key())
 
-if "collaborators" in st.session_state and st.session_state["collaborators"]:
-    for col in st.session_state["collaborators"]:
-        colab_entries = (
-            db.child("journals").child(col.key()).order_by_key().get().each()
-        )
-        if colab_entries:
-            for e in colab_entries:
-                entry(e.val(), e.key() + "2", col.val())
-                # entry(e.val(), e.key()+"2", "ai")
-
-
+        
 journal_input = st.chat_input("Start journaling...")
 if journal_input:
     data = {"entry": journal_input, "date": str(datetime.datetime.utcnow())}
