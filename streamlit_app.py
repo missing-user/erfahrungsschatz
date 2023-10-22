@@ -13,20 +13,6 @@ database = firebase.database()
 auth = firebase.auth()
 login.login_page(auth)
 
-database.remove()
-
-# Create data
-for i in range(3):
-  data = {'userId': auth.current_user, 'entry': "abc", 'date': str(datetime.datetime.utcnow())}
-  database.push(data)
-
-
-
-for entries in database.get().each():
-  with st.chat_message("user"):
-    st.write(entries.val()["entry"])
-
-
 # Title
 st.title('Erfahrungsschatz')
 
