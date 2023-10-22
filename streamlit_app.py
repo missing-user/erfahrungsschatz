@@ -52,12 +52,26 @@ def get_all_entries():
             entries.extend(colab_entries)
     return entries
 
+st.markdown(
+"""
+<style>
+    div[data-testid="column"]:nth-of-type(1)
+    {
+    
+    } 
+    div[data-testid="column"]:nth-of-type(2)
+    {
+    } 
+</style>
+""",unsafe_allow_html=True
+)
+
 entries = get_all_entries()
 if entries:
     for e in entries:
         entry(e.val(), e.key())
 
-        
+
 journal_input = st.chat_input("Start journaling...")
 if journal_input:
     data = {"entry": journal_input, "date": str(datetime.datetime.utcnow())}
