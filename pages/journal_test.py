@@ -66,34 +66,6 @@ dates = [datetime.date(2021, 2, 1), datetime.date(2022, 2, 1),
          datetime.date(2023, 2, 1), datetime.date(2021, 2, 1), datetime.date(2022, 2, 1),
          datetime.date(2023, 2, 1)]
 
-formatted_messages = []
-formatted_messages.append({"role": "system", "content": """You are supposed to help
-                    with the knowledge management system
-                    of a research group. You are given the journal entries of different users (given by the name after the string "from user" taken over time while working on different projects. 
-        It may be the case, that the newest problem the user faces (the last message) can be solved by some old entries or at least old entries can
-                    help the user to find the problem better. 
-                    Please give the message numbers of the messages that you think are relevant for the newest problem the user faces and give a summary
-                    of what the user could do to solve the problem. 
-                    Ignore the last consecutive messages from the same user as he still knows what is problem is.
-                    If no message is relevant, write "no message is relevant".
-                    I there are relevant messages, return it in the following format:
-                        {
-                    Relevant messages: [message number 1, message number 2, ...]
-                        Summary: {summary}}
-                    The summary should be somthing in the direction of:
-                    Hey _insert_user_name, other people might have had the same problem before. Based on the questions _insert_massage_numbers 
-                    you could consider trying....
-                    Try clustering the messages into different problem solving approaches, if there are several, but please only if.
-                    """})
-
-msg_nr = 0
-for index, entry in enumerate(journal_entries):
-    msg_nr += 1
-    formatted_messages.append({"role": "user", "content": "Mesage Nr.: " + str(msg_nr) + " from user " + users[index] + ": " + entry})
-
-
-
-#completion = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=formatted_messages)
 
 # Create DataFrame
 df = pd.DataFrame({'user': users, 'journal_entry': journal_entries, 'date': dates})
@@ -178,10 +150,38 @@ if st.session_state["auth_user"]:
             #columns[0].markdown(f'<div style="border-radius: 15px; background-color: light-grey; padding: 20px; box-shadow: 5px 5px 10px #888888;">{date}</div>', unsafe_allow_html=True)
             entry(data, key, columns[1])
         
-        
-        
 
-if completion:
+
+
+
+if st.button("Generate suggestion"):
+    formatted_messages = []
+    formatted_messages.append({"role": "system", "content": """You are supposed to help
+                        with the knowledge management system
+                        of a research group. You are given the journal entries of different users (given by the name after the string 
+                        "from user" taken over time while working on different projects. 
+                        It may be the case, that the newest problem the user faces (the last message) can be solved by some old entries or at least old entries can
+                        help the user to find the problem better. 
+                        Please give the message numbers of the messages that you think are relevant for the newest problem the user faces and give a summary
+                        of what the user could do to solve the problem. 
+                        Ignore the last consecutive messages from the same user as he still knows what is problem is.
+                        If no message is relevant, write "no message is relevant".
+                        If there are relevant messages, return it in the following format:
+                            {
+                        Relevant messages: [message number 1, message number 2, ...]
+                            Summary: {summary}}
+                        The summary should be somthing in the direction of:
+                        Hey _insert_user_name, other people might have had the same problem before. Based on the questions _insert_massage_numbers 
+                        you could consider trying....
+                        Try clustering the messages into different problem solving approaches, if there are several, but please only if.
+                        """})
+    msg_nr = 0
+    for index, entry in enumerate(journal_entries):
+        msg_nr += 1
+        formatted_messages.append({"role": "user", "content": "Mesage Nr.: " + str(msg_nr) + " from user " + users[index] + ": " + entry})
+
+
+    completion = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=formatted_messages)
     st.write(completion["choices"][0]["message"]["content"])
     match = re.search(r'"Summary":\s+"(.*?)"', completion["choices"][0]["message"]["content"], re.DOTALL)
     if match:
