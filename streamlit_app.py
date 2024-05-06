@@ -41,8 +41,9 @@ def entry(data, key, name="human"):
 
 uid = st.session_state["auth_user"]["localId"]
 
+
 def get_all_entries():
-    #entries = db.child("journals").child(uid).order_by_key().get().each()
+    # entries = db.child("journals").child(uid).order_by_key().get().each()
     entries = []
     if "collaborators" in st.session_state and st.session_state["collaborators"]:
         for col in st.session_state["collaborators"]:
@@ -52,8 +53,9 @@ def get_all_entries():
             entries.extend(colab_entries)
     return entries
 
+
 st.markdown(
-"""
+    """
 <style>
     div[data-testid="column"]:nth-of-type(1)
     {
@@ -63,7 +65,8 @@ st.markdown(
     {
     } 
 </style>
-""",unsafe_allow_html=True
+""",
+    unsafe_allow_html=True,
 )
 
 entries = get_all_entries()

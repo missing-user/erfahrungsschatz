@@ -12,7 +12,7 @@ from streamlit_extras.switch_page_button import switch_page
 
 
 if "auth_user" not in st.session_state or not st.session_state["auth_user"]:
-  switch_page("login")
+    switch_page("login")
 
 config = st.secrets
 openai.api_key = config.open_api_key
@@ -28,7 +28,6 @@ uid = st.session_state["auth_user"]["localId"]
 embedding_model = "text-embedding-ada-002"
 embedding_encoding = "cl100k_base"  # this the encoding for text-embedding-ada-002
 max_tokens = 8000  # the maximum for text-embedding-ada-002 is 8191
-
 
 
 st.set_page_config(layout="wide")
@@ -60,16 +59,21 @@ journal_entries = [
     - checking that laser exites through fiber with visible laser
     - turning off ventilation system to reduce noise""",
     """At the beginning of the day I still had no clue why it was not working; After a lot of discussions with group members, I
-    finally figured out what the problem was: The detection diode was not calibrated correctly. So next time keep that in mind!"""
+    finally figured out what the problem was: The detection diode was not calibrated correctly. So next time keep that in mind!""",
 ]
-dates = [datetime.date(2021, 2, 1), datetime.date(2022, 2, 1), 
-         datetime.date(2023, 2, 1), datetime.date(2021, 2, 1), datetime.date(2022, 2, 1),
-         datetime.date(2023, 2, 1)]
+dates = [
+    datetime.date(2021, 2, 1),
+    datetime.date(2022, 2, 1),
+    datetime.date(2023, 2, 1),
+    datetime.date(2021, 2, 1),
+    datetime.date(2022, 2, 1),
+    datetime.date(2023, 2, 1),
+]
 
 
 # Create DataFrame
-df = pd.DataFrame({'user': users, 'journal_entry': journal_entries, 'date': dates})
-#ontological similarity
+df = pd.DataFrame({"user": users, "journal_entry": journal_entries, "date": dates})
+# ontological similarity
 
 dates = df.date.unique()
 users = df.user.unique()
@@ -77,21 +81,26 @@ dates = sorted(dates)
 
 
 def entry(message, key, column):
-    col1, col2 = column.columns([8,1])
+    col1, col2 = column.columns([8, 1])
     with col1:
-      if "editing" in st.session_state and st.session_state["editing"] == key:
-        edit_inp = column.text_area("Editing entry", value=message, key=key+"_edit")
-        if edit_inp != message:
-          db.child("journals").child(uid).child(key).update({"entry": edit_inp, "date": date})
-          st.write("Updated entry", key)
-          del st.session_state["editing"]
-          st.rerun()
-      else:
-        column.markdown(message)
+        if "editing" in st.session_state and st.session_state["editing"] == key:
+            edit_inp = column.text_area(
+                "Editing entry", value=message, key=key + "_edit"
+            )
+            if edit_inp != message:
+                db.child("journals").child(uid).child(key).update(
+                    {"entry": edit_inp, "date": date}
+                )
+                st.write("Updated entry", key)
+                del st.session_state["editing"]
+                st.rerun()
+        else:
+            column.markdown(message)
     with col2:
-      if column.button("Edit", key=key):
-        st.session_state["editing"] = key
-        st.rerun()
+        if column.button("Edit", key=key):
+            st.session_state["editing"] = key
+            st.rerun()
+
 
 def parse_database_entries(entries, uid):
     # Convert from pyrebase object to dict
@@ -101,6 +110,7 @@ def parse_database_entries(entries, uid):
         entries[i]["key"] = key
         entries[i]["uid"] = uid
     return entries
+
 
 def get_all_entries():
     entries = db.child("journals").child(uid).order_by_key().get().each()
@@ -114,36 +124,45 @@ def get_all_entries():
             entries.extend(parse_database_entries(colab_entries, col.key()))
     return entries
 
+
 entries = get_all_entries()
 if entries:
     df = pd.DataFrame(entries)
-    df["date"] = df["date"].apply(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S.%f').date())
-    #st.write(df)
-    
+    df["date"] = df["date"].apply(
+        lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f").date()
+    )
+    # st.write(df)
+
     for date in df["date"].unique():
         today_df = df[df["date"] == date]
         users = today_df["uid"].unique()
         # Create a column for each user
-        columns = st.columns(len(users)+1)
-        #columns[0].header("Date")
+        columns = st.columns(len(users) + 1)
+        # columns[0].header("Date")
         columns[0].write(date)
         for i, column in enumerate(columns[1:]):
             user = users[i]
             with column:
-                for entry in today_df.loc[today_df["uid"] == user,"entry"]:
-                    #with st.chat_message(user):
+                for entry in today_df.loc[today_df["uid"] == user, "entry"]:
+                    # with st.chat_message(user):
                     st.markdown(entry)
-
 
 
 if completion:
     st.write(completion["choices"][0]["message"]["content"])
-    match = re.search(r'"Summary":\s+"(.*?)"', completion["choices"][0]["message"]["content"], re.DOTALL)
+    match = re.search(
+        r'"Summary":\s+"(.*?)"',
+        completion["choices"][0]["message"]["content"],
+        re.DOTALL,
+    )
     if match:
         summary = match.group(1)
         st.write(summary)
-    match = re.search(r'"Relevant messages": \[([\d, ]+)\]', completion["choices"][0]["message"]["content"])
+    match = re.search(
+        r'"Relevant messages": \[([\d, ]+)\]',
+        completion["choices"][0]["message"]["content"],
+    )
     if match:
         messages_str = match.group(1)
-        messages = [int(msg.strip()) for msg in messages_str.split(',')]
+        messages = [int(msg.strip()) for msg in messages_str.split(",")]
         st.write(messages)
